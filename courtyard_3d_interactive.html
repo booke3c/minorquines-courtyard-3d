@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Minorquines 前庭 3D 精準模擬 v2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#1a1a1a;font-family:'Segoe UI',system-ui,sans-serif;touch-action:none}
+canvas{display:block}
+#loading{position:fixed;inset:0;background:#1a1a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .6s}
+#loading h2{color:#c9b896;font-weight:300;letter-spacing:4px;font-size:18px;margin-bottom:16px}
+#loading .bar{width:200px;height:2px;background:#333;border-radius:1px;overflow:hidden}
+#loading .fill{height:100%;width:0;background:linear-gradient(90deg,#8B7355,#C9B896);transition:width .3s}
+#loading.done{opacity:0;pointer-events:none}
+#ui{position:fixed;top:12px;left:12px;z-index:100;user-select:none;max-width:200px}
+@media(max-width:600px){#ui{max-width:160px;top:8px;left:8px}}
+#ui h1{color:#fff;font-size:14px;font-weight:300;letter-spacing:3px;margin-bottom:2px}
+@media(max-width:600px){#ui h1{font-size:12px}}
+.subtitle{color:#999;font-size:10px;margin-bottom:12px}
+.btn-group{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.btn-group-label{color:#666;font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+.btn{background:rgba(25,24,22,.88);border:1px solid rgba(255,255,255,.08);color:#bbb;padding:6px 12px;font-size:11px;cursor:pointer;border-radius:4px;transition:all .25s;backdrop-filter:blur(12px);text-align:left;-webkit-tap-highlight-color:transparent}
+@media(max-width:600px){.btn{padding:8px 10px;font-size:12px}}
+.btn:hover,.btn:active{background:rgba(50,48,44,.92);color:#fff;border-color:rgba(201,184,150,.3)}
+.btn.active{background:rgba(120,100,65,.5);border-color:rgba(201,184,150,.5);color:#fff}
+.row{display:flex;gap:3px}
+.row .btn{flex:1;text-align:center}
+#dim-panel{position:fixed;bottom:12px;left:12px;background:rgba(18,17,15,.92);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:12px 16px;color:#999;font-size:10px;backdrop-filter:blur(12px);max-width:260px;line-height:1.8}
+@media(max-width:600px){#dim-panel{font-size:9px;padding:8px 12px;max-width:200px;bottom:8px;left:8px}}
+#dim-panel h3{color:#c9b896;font-size:11px;font-weight:400;margin-bottom:4px;letter-spacing:1px}
+.dr{display:flex;justify-content:space-between}.dv{color:#ddd;font-family:'SF Mono',monospace;font-size:10px}
+#credit{position:fixed;bottom:12px;right:12px;color:#444;font-size:9px;letter-spacing:.5px}
+</style>
+</head>
+<body>
+<div id="loading">
+  <h2>MINORQUINES</h2>
+  <div class="bar"><div class="fill" id="load-fill"></div></div>
+</div>
+
+<div id="ui">
+  <h1>MINORQUINES</h1>
+  <div class="subtitle">西屯鞋店 · 前庭 3D v2 · 侘寂庭園</div>
+  <div class="btn-group">
+    <div class="btn-group-label">視角 Viewpoint</div>
+    <button class="btn" onclick="setView('corner')">↗ 街角外觀</button>
+    <button class="btn" onclick="setView('front')">→ 正面外觀</button>
+    <button class="btn" onclick="setView('courtyard')">⊙ 前庭內部</button>
+    <button class="btn" onclick="setView('bird')">↓ 鳥瞰俯視</button>
+    <button class="btn" onclick="setView('night_corner')">☾ 夜間街角</button>
+  </div>
+  <div class="btn-group">
+    <div class="btn-group-label">模式 Mode</div>
+    <div class="row">
+      <button class="btn active" id="btn-day" onclick="setDayNight('day')">☀ 日間</button>
+      <button class="btn" id="btn-night" onclick="setDayNight('night')">☾ 夜間</button>
+    </div>
+  </div>
+  <div class="btn-group">
+    <div class="btn-group-label">標註</div>
+    <button class="btn" id="btn-dims" onclick="toggleDims()">📐 尺寸標註</button>
+    <button class="btn" id="btn-grid" onclick="toggleGrid()">▦ 地面網格</button>
+  </div>
+</div>
+<div id="dim-panel">
+  <h3>施工圖尺寸 v2 (cm)</h3>
+  <div class="dr"><span>前庭</span><span class="dv">924 × 530</span></div>
+  <div class="dr"><span>左遮蔽牆</span><span class="dv">H190</span></div>
+  <div class="dr"><span>右矮牆</span><span class="dv">H90 T10</span></div>
+  <div class="dr"><span>石柱</span><span class="dv">H45 間距150-180</span></div>
+  <div class="dr"><span>建物</span><span class="dv">W709 H339</span></div>
+  <div class="dr"><span>地坪</span><span class="dv">石板+碎石(玉砂利)</span></div>
+</div>
+<div id="credit">鉑金室內設計 · v2 侘寂庭園</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+const loadBar = document.getElementById('load-fill');
+let loadPct = 0;
+function advLoad(p){ loadPct=Math.min(p,100); loadBar.style.width=loadPct+'%'; }
+advLoad(10);
+
+// ===== PDF DIMENSIONS (meters) =====
+const CY_W=9.24, CY_D=5.30;
+const WL_H=0.90, WL_T=0.10;
+const LW_H=1.90, LW_T=0.15;
+const BL_H=0.45, BL_S=0.25;
+const BD_W=7.09, BD_D=5.00, BD_H=3.39;
+const WN_H=2.65;
+const CL_S=0.40;
+
+// ===== RENDERER =====
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+// Warm overcast sky instead of bright blue — more wabi-sabi
+scene.background = new THREE.Color(0xD5CCBC);
+scene.fog = new THREE.FogExp2(0xD5CCBC, 0.018);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 80);
+camera.position.set(-7, 3.5, 10);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(3, 0.5, 2);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.minDistance = 2;
+controls.maxDistance = 25;
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+controls.update();
+
+advLoad(20);
+
+// ===== ENHANCED TEXTURE GENERATORS =====
+
+// --- Perlin-like noise helper ---
+function seededRandom(s){return()=>{s=(s*16807)%2147483647;return(s-1)/2147483646;}}
+function noiseLayer(c,w,h,freq,amp,baseR,baseG,baseB,rng){
+  const x=c.getContext('2d');
+  const step=Math.max(2,Math.floor(w/freq));
+  // Create noise grid
+  const gw=Math.ceil(w/step)+2, gh=Math.ceil(h/step)+2;
+  const grid=[];
+  for(let i=0;i<gw*gh;i++) grid.push(rng()*2-1);
+  // Interpolate and paint
+  for(let py=0;py<h;py+=2){
+    for(let px=0;px<w;px+=2){
+      const gx=px/step, gy=py/step;
+      const ix=Math.floor(gx), iy=Math.floor(gy);
+      const fx=gx-ix, fy=gy-iy;
+      const sfx=fx*fx*(3-2*fx), sfy=fy*fy*(3-2*fy);
+      const idx=i=>grid[((i%gw)+gw)%gw + (((Math.floor(i/gw))%gh)+gh)%gh * gw] || 0;
+      const v00=grid[(iy%gh)*gw+(ix%gw)]||0;
+      const v10=grid[(iy%gh)*gw+((ix+1)%gw)]||0;
+      const v01=grid[((iy+1)%gh)*gw+(ix%gw)]||0;
+      const v11=grid[((iy+1)%gh)*gw+((ix+1)%gw)]||0;
+      const v=((v00*(1-sfx)+v10*sfx)*(1-sfy)+(v01*(1-sfx)+v11*sfx)*sfy)*amp;
+      const r=Math.max(0,Math.min(255,baseR+v));
+      const g=Math.max(0,Math.min(255,baseG+v));
+      const b=Math.max(0,Math.min(255,baseB+v));
+      x.fillStyle=`rgba(${r|0},${g|0},${b|0},0.4)`;
+      x.fillRect(px,py,3,3);
+    }
+  }
+}
+
+// --- STONE PAVER + GRAVEL GROUND ---
+function makeStonePaverTex(){
+  const S=1024, c=document.createElement('canvas'); c.width=c.height=S;
+  const x=c.getContext('2d');
+  const rng=seededRandom(42);
+
+  // Base: warm sandy gravel
+  x.fillStyle='#C4B79E'; x.fillRect(0,0,S,S);
+
+  // Gravel particle layers — multiple passes for depth
+  for(let pass=0;pass<2;pass++){
+    const count=pass===0?20000:10000;
+    for(let i=0;i<count;i++){
+      const px=rng()*S, py=rng()*S;
+      const shade=rng();
+      let r,g,b;
+      if(shade<0.3){r=175+rng()*25;g=162+rng()*20;b=130+rng()*20;}      // warm brown
+      else if(shade<0.6){r=185+rng()*20;g=178+rng()*18;b=155+rng()*18;} // sandy
+      else if(shade<0.85){r=160+rng()*15;g=152+rng()*15;b=128+rng()*15;}// darker earth
+      else{r=195+rng()*15;g=190+rng()*12;b=170+rng()*12;}               // pale pebble
+      const sz=0.8+rng()*2.5;
+      x.fillStyle=`rgba(${r|0},${g|0},${b|0},${0.3+rng()*0.5})`;
+      x.beginPath(); x.arc(px,py,sz,0,Math.PI*2); x.fill();
+    }
+  }
+
+  // Stone pavers — larger, more organic shapes with rounded corners effect
+  const stones=[
+    {cx:130,cy:120,w:200,h:170,rot:0.05},
+    {cx:400,cy:100,w:220,h:190,rot:-0.03},
+    {cx:680,cy:130,w:190,h:170,rot:0.08},
+    {cx:920,cy:110,w:180,h:160,rot:-0.04},
+    {cx:100,cy:350,w:210,h:180,rot:-0.06},
+    {cx:370,cy:330,w:200,h:200,rot:0.04},
+    {cx:630,cy:370,w:185,h:165,rot:-0.02},
+    {cx:890,cy:350,w:195,h:175,rot:0.07},
+    {cx:160,cy:580,w:220,h:175,rot:0.03},
+    {cx:430,cy:560,w:195,h:195,rot:-0.05},
+    {cx:700,cy:590,w:180,h:170,rot:0.06},
+    {cx:940,cy:570,w:200,h:180,rot:-0.03},
+    {cx:120,cy:810,w:200,h:185,rot:-0.04},
+    {cx:390,cy:790,w:215,h:175,rot:0.02},
+    {cx:660,cy:820,w:190,h:190,rot:-0.07},
+    {cx:910,cy:800,w:205,h:170,rot:0.05},
+  ];
+
+  stones.forEach(s=>{
+    x.save();
+    x.translate(s.cx,s.cy);
+    x.rotate(s.rot);
+    // Stone base color — pale warm grey with variation
+    const v=rng()*12-6;
+    const sr=205+v, sg=200+v*0.8, sb=188+v*0.6;
+
+    // Draw rounded irregular shape
+    const hw=s.w/2, hh=s.h/2;
+    const r=15+rng()*10; // corner radius
+    x.beginPath();
+    const offsets=[];
+    for(let a=0;a<8;a++) offsets.push((rng()-0.5)*12);
+    x.moveTo(-hw+r+offsets[0], -hh+offsets[1]);
+    x.lineTo(hw-r+offsets[2], -hh+offsets[1]*0.5);
+    x.quadraticCurveTo(hw+offsets[2]*0.5, -hh, hw+offsets[3], -hh+r);
+    x.lineTo(hw+offsets[3]*0.5, hh-r+offsets[4]);
+    x.quadraticCurveTo(hw, hh+offsets[4]*0.3, hw-r+offsets[5], hh+offsets[5]*0.3);
+    x.lineTo(-hw+r+offsets[6], hh+offsets[6]*0.3);
+    x.quadraticCurveTo(-hw+offsets[6]*0.5, hh, -hw+offsets[7], hh-r);
+    x.lineTo(-hw+offsets[7]*0.5, -hh+r+offsets[0]*0.5);
+    x.quadraticCurveTo(-hw, -hh, -hw+r+offsets[0], -hh+offsets[1]);
+    x.closePath();
+
+    // Fill stone
+    x.fillStyle=`rgb(${sr|0},${sg|0},${sb|0})`;
+    x.fill();
+
+    // Stone surface texture — subtle veining
+    x.save(); x.clip();
+    for(let i=0;i<150;i++){
+      const px=(rng()-0.5)*s.w, py=(rng()-0.5)*s.h;
+      const tv=rng()*16-8;
+      x.fillStyle=`rgba(${sr+tv|0},${sg+tv|0},${sb+tv|0},0.25)`;
+      x.fillRect(px,py,2+rng()*4,1+rng()*2);
+    }
+    // Subtle veins
+    for(let v=0;v<3;v++){
+      x.strokeStyle=`rgba(${sr-15|0},${sg-12|0},${sb-10|0},0.12)`;
+      x.lineWidth=0.5+rng();
+      x.beginPath();
+      let vx=(rng()-0.5)*s.w*0.6, vy=(rng()-0.5)*s.h*0.6;
+      x.moveTo(vx,vy);
+      for(let p=0;p<4;p++){
+        vx+=rng()*40-20; vy+=rng()*30-15;
+        x.lineTo(vx,vy);
+      }
+      x.stroke();
+    }
+    x.restore();
+
+    // Stone edge shadow
+    x.strokeStyle='rgba(80,72,60,0.2)';
+    x.lineWidth=2;
+    x.stroke();
+    // Inner highlight on top-left
+    x.strokeStyle='rgba(230,225,215,0.15)';
+    x.lineWidth=1;
+    x.stroke();
+
+    x.restore();
+  });
+
+  // Moss patches in gravel gaps — more natural distribution
+  for(let i=0;i<80;i++){
+    const px=rng()*S, py=rng()*S;
+    const mossR=50+rng()*35, mossG=80+rng()*45, mossB=30+rng()*25;
+    const sz=3+rng()*10;
+    const grad=x.createRadialGradient(px,py,0,px,py,sz);
+    grad.addColorStop(0,`rgba(${mossR|0},${mossG|0},${mossB|0},0.45)`);
+    grad.addColorStop(1,`rgba(${mossR|0},${mossG|0},${mossB|0},0)`);
+    x.fillStyle=grad;
+    x.beginPath(); x.arc(px,py,sz,0,Math.PI*2); x.fill();
+  }
+
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(2,2);
+  t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+
+// --- STONE PAVER ROUGHNESS MAP ---
+function makeStonePaverRough(){
+  const S=512, c=document.createElement('canvas'); c.width=c.height=S;
+  const x=c.getContext('2d');
+  // Gravel is rougher, stones slightly smoother
+  x.fillStyle='#ccc'; x.fillRect(0,0,S,S); // base rough for gravel
+  // Stone areas slightly smoother
+  const stones=[
+    {x:65,y:60,w:100,h:85},{x:200,y:50,w:110,h:95},
+    {x:340,y:65,w:95,h:85},{x:460,y:55,w:90,h:80},
+    {x:50,y:175,w:105,h:90},{x:185,y:165,w:100,h:100},
+    {x:315,y:185,w:92,h:82},{x:445,y:175,w:97,h:87},
+    {x:80,y:290,w:110,h:87},{x:215,y:280,w:97,h:97},
+    {x:350,y:295,w:90,h:85},{x:470,y:285,w:100,h:90},
+    {x:60,y:405,w:100,h:92},{x:195,y:395,w:107,h:87},
+    {x:330,y:410,w:95,h:95},{x:455,y:400,w:102,h:85},
+  ];
+  stones.forEach(s=>{
+    x.fillStyle='#888'; // smoother
+    x.fillRect(s.x,s.y,s.w,s.h);
+  });
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(2,2);
+  return t;
+}
+
+advLoad(35);
+
+// --- ART PLASTER / MICRO-CEMENT WALL ---
+function makeArtPlasterTex(){
+  const S=512, c=document.createElement('canvas'); c.width=c.height=S;
+  const x=c.getContext('2d');
+  // Warm white base
+  x.fillStyle='#EDE7DD'; x.fillRect(0,0,S,S);
+  const rng=seededRandom(123);
+  // Multiple subtle layers for depth
+  for(let pass=0;pass<2;pass++){
+    for(let i=0;i<6000;i++){
+      const px=rng()*S, py=rng()*S;
+      const v=rng()*6-3;
+      const a=0.08+rng()*0.12;
+      x.fillStyle=`rgba(${237+v|0},${231+v|0},${221+v|0},${a})`;
+      // Trowel-like strokes
+      const sw=3+rng()*8, sh=1+rng()*2;
+      x.save();
+      x.translate(px,py);
+      x.rotate((rng()-0.5)*0.3);
+      x.fillRect(-sw/2,-sh/2,sw,sh);
+      x.restore();
+    }
+  }
+  // Subtle darker patches (micro-cement imperfections)
+  for(let i=0;i<40;i++){
+    const px=rng()*S, py=rng()*S, sz=15+rng()*30;
+    const grad=x.createRadialGradient(px,py,0,px,py,sz);
+    grad.addColorStop(0,'rgba(200,195,185,0.08)');
+    grad.addColorStop(1,'rgba(200,195,185,0)');
+    x.fillStyle=grad;
+    x.beginPath(); x.arc(px,py,sz,0,Math.PI*2); x.fill();
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1,2);
+  t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+
+// --- GRANITE TEXTURE for bollards ---
+function makeGraniteTex(){
+  const S=256, c=document.createElement('canvas'); c.width=c.height=S;
+  const x=c.getContext('2d');
+  x.fillStyle='#C8C2B8'; x.fillRect(0,0,S,S);
+  const rng=seededRandom(99);
+  // Speckled granite
+  for(let i=0;i<3000;i++){
+    const px=rng()*S, py=rng()*S;
+    const t=rng();
+    let r,g,b;
+    if(t<0.3){r=180+rng()*20;g=175+rng()*18;b=165+rng()*18;} // dark speckle
+    else if(t<0.7){r=200+rng()*15;g=195+rng()*15;b=185+rng()*15;} // mid
+    else{r=215+rng()*15;g=212+rng()*12;b=205+rng()*12;} // light crystal
+    x.fillStyle=`rgb(${r|0},${g|0},${b|0})`;
+    const sz=1+rng()*2.5;
+    x.fillRect(px,py,sz,sz);
+  }
+  const tex=new THREE.CanvasTexture(c);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  return tex;
+}
+
+// --- WOOD FRAME TEXTURE ---
+function makeWoodTex(){
+  const S=256, c=document.createElement('canvas'); c.width=S; c.height=S;
+  const x=c.getContext('2d');
+  x.fillStyle='#8B6F45'; x.fillRect(0,0,S,S);
+  const rng=seededRandom(55);
+  // Wood grain
+  for(let y=0;y<S;y++){
+    const v=Math.sin(y*0.15+rng()*3)*4 + rng()*6-3;
+    x.fillStyle=`rgba(${120+v|0},${95+v|0},${55+v|0},0.3)`;
+    x.fillRect(0,y,S,1);
+  }
+  for(let i=0;i<3000;i++){
+    const px=rng()*S, py=rng()*S;
+    x.fillStyle=`rgba(${130+rng()*30|0},${100+rng()*25|0},${60+rng()*20|0},0.15)`;
+    x.fillRect(px,py,1+rng()*6,0.5+rng());
+  }
+  const tex=new THREE.CanvasTexture(c);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  return tex;
+}
+
+// --- BUILDING FACADE TEXTURE ---
+function makeFacadeTex(){
+  const S=512, c=document.createElement('canvas'); c.width=c.height=S;
+  const x=c.getContext('2d');
+  x.fillStyle='#F0EBE2'; x.fillRect(0,0,S,S);
+  const rng=seededRandom(200);
+  for(let i=0;i<10000;i++){
+    const px=rng()*S, py=rng()*S;
+    const v=rng()*4-2;
+    x.fillStyle=`rgba(${240+v|0},${235+v|0},${226+v|0},0.3)`;
+    x.fillRect(px,py,2+rng()*4,1+rng()*3);
+  }
+  const tex=new THREE.CanvasTexture(c);
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  tex.colorSpace=THREE.SRGBColorSpace;
+  return tex;
+}
+
+advLoad(55);
+
+// --- CERAMIC POT TEXTURE ---
+function makeCeramicTex(){
+  const S=256, c=document.createElement('canvas'); c.width=S; c.height=S;
+  const x=c.getContext('2d');
+  x.fillStyle='#5A524A'; x.fillRect(0,0,S,S);
+  const rng=seededRandom(88);
+  for(let y=0;y<S;y++){
+    const v=Math.sin(y*0.08)*3+rng()*4-2;
+    x.fillStyle=`rgba(${85+v|0},${78+v|0},${70+v|0},0.3)`;
+    x.fillRect(0,y,S,1);
+  }
+  const tex=new THREE.CanvasTexture(c);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  return tex;
+}
+
+// ===== MATERIALS (UPGRADED) =====
+const stonePaverMap=makeStonePaverTex();
+const stonePaverRoughMap=makeStonePaverRough();
+const artPlasterMap=makeArtPlasterTex();
+const graniteMap=makeGraniteTex();
+const woodMap=makeWoodTex();
+const facadeMap=makeFacadeTex();
+const ceramicMap=makeCeramicTex();
+
+const M={
+  stonePaver: new THREE.MeshStandardMaterial({map:stonePaverMap, roughnessMap:stonePaverRoughMap, roughness:0.82, metalness:0.02}),
+  artPlaster: new THREE.MeshStandardMaterial({map:artPlasterMap, roughness:0.78, metalness:0.0}),
+  facade:    new THREE.MeshStandardMaterial({map:facadeMap, roughness:0.72, metalness:0.0}),
+  wood:      new THREE.MeshStandardMaterial({map:woodMap, roughness:0.52, metalness:0.05}),
+  bronze:    new THREE.MeshStandardMaterial({color:0x6B5840, roughness:0.32, metalness:0.82}),
+  granite:   new THREE.MeshStandardMaterial({map:graniteMap, roughness:0.78, metalness:0.03}),
+  glass:     new THREE.MeshPhysicalMaterial({color:0xD8E4EE, roughness:0.03, transmission:0.82, thickness:0.02, transparent:true, opacity:0.3, ior:1.5}),
+  ground:    new THREE.MeshStandardMaterial({color:0x706B60, roughness:0.92}),
+  sidewalk:  new THREE.MeshStandardMaterial({color:0x9A9588, roughness:0.88}),
+  plant:     new THREE.MeshStandardMaterial({color:0x516B45, roughness:0.82}),
+  plantD:    new THREE.MeshStandardMaterial({color:0x3D5535, roughness:0.82}),
+  bamboo:    new THREE.MeshStandardMaterial({color:0x5D7F4D, roughness:0.72}),
+  bambooS:   new THREE.MeshStandardMaterial({color:0x456838, roughness:0.72}),
+  maple:     new THREE.MeshStandardMaterial({color:0xB04030, roughness:0.72}),
+  mapleO:    new THREE.MeshStandardMaterial({color:0xC86028, roughness:0.72}),
+  mapleG:    new THREE.MeshStandardMaterial({color:0x6D8B3E, roughness:0.72}),
+  interior:  new THREE.MeshStandardMaterial({color:0xFFF5E6, roughness:0.68, side:THREE.DoubleSide}),
+  intFloor:  new THREE.MeshStandardMaterial({color:0xD8D2C8, roughness:0.48}),
+  col:       new THREE.MeshStandardMaterial({color:0xD0CCC5, roughness:0.75}),
+  ceramic:   new THREE.MeshStandardMaterial({map:ceramicMap, roughness:0.72, metalness:0.03}),
+  stone:     new THREE.MeshStandardMaterial({color:0x908578, roughness:0.88}),
+  stoneD:    new THREE.MeshStandardMaterial({color:0x756A5E, roughness:0.90}),
+  moss:      new THREE.MeshStandardMaterial({color:0x4D6D35, roughness:0.92}),
+  chain:     new THREE.MeshStandardMaterial({color:0x6B5840, roughness:0.38, metalness:0.75}),
+  adj:       new THREE.MeshStandardMaterial({color:0xB8B4AC, roughness:0.92}),
+  logoMetal: new THREE.MeshStandardMaterial({color:0x3D352D, roughness:0.22, metalness:0.92}),
+  led:       new THREE.MeshBasicMaterial({color:0xFFE4B5, transparent:true, opacity:0}),
+  ledR:      new THREE.MeshBasicMaterial({color:0xFFE4B5, transparent:true, opacity:0}),
+  drain:     new THREE.MeshStandardMaterial({color:0xA59E92, roughness:0.72, metalness:0.25}),
+  trunk:     new THREE.MeshStandardMaterial({color:0x6B5842, roughness:0.82}),
+  trunkD:    new THREE.MeshStandardMaterial({color:0x554838, roughness:0.85}),
+  shoe:      new THREE.MeshStandardMaterial({color:0x8B6B4A, roughness:0.45, metalness:0.1}),
+};
+
+advLoad(65);
+
+// ===== HELPERS =====
+function box(w,h,d,mat,x,y,z,shadow=true){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z);
+  if(shadow){m.castShadow=true;m.receiveShadow=true}
+  scene.add(m); return m;
+}
+function plane(w,h,mat,x,y,z,rx=0,ry=0){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mat);
+  m.position.set(x,y,z); m.rotation.x=rx; m.rotation.y=ry;
+  m.receiveShadow=true; scene.add(m); return m;
+}
+
+// ===== GROUND PLANES =====
+plane(30,30,M.ground, CY_W/2,-0.01,CY_D/2, -Math.PI/2);
+// Sidewalks with subtle elevation
+const sw1=plane(14,2.5, M.sidewalk, CY_W/2,0.015,CY_D+1.75, -Math.PI/2);
+const sw2=plane(2.5,12, M.sidewalk, CY_W+1.75,0.015,CY_D/2, -Math.PI/2);
+// Road
+const roadMat=new THREE.MeshStandardMaterial({color:0x555550, roughness:0.95});
+plane(16,4, roadMat, CY_W/2,0.002,CY_D+4, -Math.PI/2);
+plane(4,14, roadMat, CY_W+4,0.002,CY_D/2, -Math.PI/2);
+
+// ===== COURTYARD GROUND — Stone pavers + gravel =====
+const cyGround = box(CY_W,0.06,CY_D, M.stonePaver, CY_W/2,0.03,CY_D/2, false);
+cyGround.receiveShadow=true;
+
+// ===== STEPPING STONES (tobi-ishi) =====
+const steppingStones = [
+  {x:4.0, z:4.6, w:0.55, d:0.48, rot:0.1},
+  {x:3.7, z:3.8, w:0.52, d:0.52, rot:-0.15},
+  {x:3.5, z:3.0, w:0.58, d:0.46, rot:0.05},
+  {x:3.4, z:2.2, w:0.52, d:0.52, rot:-0.1},
+  {x:3.3, z:1.4, w:0.55, d:0.48, rot:0.12},
+  {x:3.4, z:0.6, w:0.52, d:0.52, rot:-0.05},
+];
+steppingStones.forEach(s=>{
+  // Rounded stepping stone
+  const geo = new THREE.CylinderGeometry(s.w/2, s.w/2*0.95, 0.06, 8);
+  const m = new THREE.Mesh(geo, M.granite);
+  m.position.set(s.x, 0.09, s.z);
+  m.rotation.y=s.rot;
+  m.castShadow=true; m.receiveShadow=true;
+  scene.add(m);
+});
+
+advLoad(70);
+
+// ===== FRONT BOUNDARY — Stone bollards + bronze chains =====
+const bollardPositions = [];
+const bollardCount = 6;
+const bollardSpacing = CY_W / (bollardCount + 1);
+for(let i=1;i<=bollardCount;i++){
+  const bx=i*bollardSpacing;
+  bollardPositions.push(bx);
+  box(BL_S, BL_H, BL_S, M.granite, bx, BL_H/2, CY_D);
+  // Subtle chamfer cap
+  const capGeo=new THREE.BoxGeometry(BL_S-0.01, 0.015, BL_S-0.01);
+  const cap=new THREE.Mesh(capGeo, M.granite);
+  cap.position.set(bx, BL_H+0.007, CY_D);
+  scene.add(cap);
+}
+
+// Chains
+function makeChain(x1,x2){
+  const pts=[];
+  for(let s=0;s<=12;s++){
+    const t=s/12;
+    const sag=0.06*Math.sin(Math.PI*t);
+    pts.push(new THREE.Vector3(x1+t*(x2-x1), BL_H*0.62-sag, CY_D));
+  }
+  const geo=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),20,0.01,6,false);
+  const m=new THREE.Mesh(geo, M.chain);
+  m.castShadow=true;
+  scene.add(m);
+}
+// Corner bollards
+box(BL_S, BL_H, BL_S, M.granite, 0.15, BL_H/2, CY_D);
+box(BL_S, BL_H, BL_S, M.granite, CY_W-0.15, BL_H/2, CY_D);
+makeChain(0.15, bollardPositions[0]);
+for(let i=0;i<bollardPositions.length-1;i++) makeChain(bollardPositions[i], bollardPositions[i+1]);
+makeChain(bollardPositions[bollardPositions.length-1], CY_W-0.15);
+
+// ===== LEFT SCREENING WALL — 190cm =====
+box(LW_T, LW_H, CY_D, M.artPlaster, -LW_T/2, LW_H/2, CY_D/2);
+box(LW_T+0.04, 0.025, CY_D+0.04, M.bronze, -LW_T/2, LW_H, CY_D/2);
+
+// Brand name on left wall
+{
+  const lc=document.createElement('canvas'); lc.width=600; lc.height=80;
+  const lx=lc.getContext('2d');
+  lx.fillStyle='rgba(232,226,216,1)'; lx.fillRect(0,0,600,80);
+  lx.fillStyle='#3D352D';
+  lx.font='500 38px "Segoe UI",Helvetica,sans-serif';
+  lx.letterSpacing='4px';
+  lx.textAlign='center'; lx.textBaseline='middle';
+  lx.fillText('MINORQUINES',300,40);
+  const lMat=new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(lx.canvas), roughness:0.3, metalness:0.85});
+  lMat.map.colorSpace=THREE.SRGBColorSpace;
+  plane(1.6, 0.22, lMat, -0.002, 1.55, CY_D*0.55, 0, Math.PI/2);
+}
+// P sign
+{
+  const pc=document.createElement('canvas'); pc.width=80; pc.height=80;
+  const px=pc.getContext('2d');
+  px.fillStyle='#EDE7DD'; px.fillRect(0,0,80,80);
+  px.fillStyle='#3D352D'; px.font='bold 50px sans-serif';
+  px.textAlign='center'; px.textBaseline='middle';
+  px.fillText('P',40,42);
+  const pMat=new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(px.canvas), roughness:0.3, metalness:0.8});
+  pMat.map.colorSpace=THREE.SRGBColorSpace;
+  plane(0.18, 0.18, pMat, -0.002, 1.18, CY_D*0.55, 0, Math.PI/2);
+}
+
+// ===== RIGHT LOW WALL =====
+box(WL_T,WL_H,CY_D, M.artPlaster, CY_W-WL_T/2,WL_H/2,CY_D/2);
+box(WL_T+0.02,0.018,CY_D+0.02, M.bronze, CY_W-WL_T/2,WL_H,CY_D/2);
+const ledR = box(0.035,0.015,CY_D*.7, M.ledR, CY_W-WL_T-0.025,0.008,CY_D/2, false);
+
+advLoad(75);
+
+// ===== BUILDING FACADE =====
+const wallSegs = [
+  {x:0.15, w:0.30},{x:2.70, w:0.40},{x:4.10, w:0.40},{x:BD_W-0.295, w:0.59},
+];
+box(BD_W, BD_H-WN_H, 0.20, M.facade, BD_W/2, WN_H+(BD_H-WN_H)/2, -0.10);
+wallSegs.forEach(s=> box(s.w,WN_H,0.20, M.facade, s.x,WN_H/2,-0.10));
+
+const w1cx=0.30+1.10, w2cx=4.30+1.10, eCx=2.90+0.50;
+plane(2.20,WN_H, M.glass, w1cx,WN_H/2,0.001);
+plane(1.00,WN_H, M.glass, eCx, WN_H/2,0.001);
+plane(2.20,WN_H, M.glass, w2cx,WN_H/2,0.001);
+
+const FT=0.055;
+function frame(x,y,w,h){ box(w,h,FT, M.wood, x,y,0.02, false); }
+frame(0.30,WN_H/2, FT,WN_H); frame(2.50,WN_H/2, FT,WN_H);
+frame(w1cx,WN_H, 2.20,FT); frame(w1cx,0, 2.20,FT);
+frame(w1cx,WN_H/2, FT,WN_H);
+frame(2.90,WN_H/2, FT,WN_H); frame(3.90,WN_H/2, FT,WN_H);
+frame(4.30,WN_H/2, FT,WN_H); frame(6.50,WN_H/2, FT,WN_H);
+frame(w2cx,WN_H, 2.20,FT); frame(w2cx,0, 2.20,FT);
+frame(w2cx,WN_H/2, FT,WN_H);
+
+// Brand name on facade
+{
+  const fc=document.createElement('canvas'); fc.width=500; fc.height=50;
+  const fx=fc.getContext('2d');
+  fx.fillStyle='#F0EBE2'; fx.fillRect(0,0,500,50);
+  fx.fillStyle='#3D352D';
+  fx.font='500 32px "Segoe UI",Helvetica,sans-serif';
+  fx.textAlign='center'; fx.textBaseline='middle';
+  fx.fillText('MINORQUINES',250,26);
+  const fMat=new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(fx.canvas), roughness:0.22, metalness:0.88});
+  fMat.map.colorSpace=THREE.SRGBColorSpace;
+  plane(1.5, 0.16, fMat, 1.40, WN_H+0.22, 0.012);
+}
+
+// Right side facade
+box(0.20,BD_H-WN_H,BD_D, M.facade, BD_W+0.10,WN_H+(BD_H-WN_H)/2,-BD_D/2);
+box(0.20,WN_H,0.50, M.facade, BD_W+0.10,WN_H/2,-0.25);
+box(0.20,WN_H,0.50, M.facade, BD_W+0.10,WN_H/2,-BD_D+0.25);
+box(0.20,WN_H,0.40, M.facade, BD_W+0.10,WN_H/2,-BD_D/2);
+plane(BD_D/2-0.65,WN_H, M.glass, BD_W+0.01,WN_H/2,-BD_D*0.25, 0,Math.PI/2);
+plane(BD_D/2-0.65,WN_H, M.glass, BD_W+0.01,WN_H/2,-BD_D*0.75, 0,Math.PI/2);
+
+box(BD_W,BD_H,0.20, M.facade, BD_W/2,BD_H/2,-BD_D);
+box(0.20,BD_H,BD_D, M.facade, -0.10,BD_H/2,-BD_D/2);
+box(BD_W+0.4,0.12,BD_D+0.4, M.facade, BD_W/2,BD_H,-BD_D/2);
+
+// ===== INTERIOR =====
+plane(BD_W-0.4,BD_D-0.4, M.intFloor, BD_W/2,0.02,-BD_D/2, -Math.PI/2);
+plane(BD_W-0.4,BD_H-0.1, M.interior, BD_W/2,BD_H/2,-BD_D+0.3);
+// Shelves with shoe objects
+for(let i=0;i<4;i++){
+  box(1.20,0.02,0.26, M.wood, 1.5,0.85+i*0.42,-BD_D+0.44, false);
+  box(1.20,0.02,0.26, M.wood, 3.0,0.85+i*0.42,-BD_D+0.44, false);
+  // Tiny shoe shapes on shelves
+  if(i<3){
+    for(let j=0;j<3;j++){
+      box(0.12,0.06,0.08, M.shoe, 1.1+j*0.35,0.88+i*0.42,-BD_D+0.42, false);
+      box(0.12,0.06,0.08, M.shoe, 2.6+j*0.35,0.88+i*0.42,-BD_D+0.42, false);
+    }
+  }
+}
+// Meeting table
+box(2.20,0.035,1.20, M.wood, 4.5,0.75,-2.8);
+[[-.95,-.50],[.95,-.50],[-.95,.50],[.95,.50]].forEach(([dx,dz])=>{
+  box(0.04,0.73,0.04, M.bronze, 4.5+dx,0.365,-2.8+dz, false);
+});
+
+// Globe pendant light
+{
+  const gMat=new THREE.MeshStandardMaterial({color:0xFFF8E0, roughness:0.25, emissive:0xFFE4B5, emissiveIntensity:0.35, transparent:true, opacity:0.85});
+  const globe=new THREE.Mesh(new THREE.SphereGeometry(0.14,16,12), gMat);
+  globe.position.set(4.5, 2.1, -2.8);
+  scene.add(globe);
+  box(0.006, 0.55, 0.006, M.bronze, 4.5, 2.48, -2.8, false);
+}
+
+// Columns
+box(CL_S,BD_H,CL_S, M.col, 2.5,BD_H/2,0);
+box(CL_S,BD_H,CL_S, M.col, 5.5,BD_H/2,0);
+
+// Adjacent building
+box(5,4.5,7, M.adj, -2.7,2.25,-3.5, false);
+
+advLoad(80);
+
+// ===== JAPANESE MAPLE TREE =====
+function addMapleTree(px, pz, height=1.8){
+  const g=new THREE.Group();
+  // Main trunk with taper
+  const tGeo=new THREE.CylinderGeometry(0.025, 0.05, height*0.55, 8);
+  const trunk=new THREE.Mesh(tGeo, M.trunk);
+  trunk.position.y=height*0.275;
+  trunk.castShadow=true; g.add(trunk);
+  // Branches — more organic
+  const branches=[
+    {dx:0.10,dy:0.48,dz:0.06,rz:-0.45,len:0.38},
+    {dx:-0.08,dy:0.45,dz:-0.05,rz:0.40,len:0.32},
+    {dx:0.04,dy:0.52,dz:-0.08,rz:-0.25,len:0.28},
+    {dx:-0.05,dy:0.50,dz:0.07,rz:0.30,len:0.25},
+  ];
+  branches.forEach(br=>{
+    const bGeo=new THREE.CylinderGeometry(0.01, 0.022, height*br.len, 5);
+    const b=new THREE.Mesh(bGeo, M.trunkD);
+    b.position.set(br.dx, height*br.dy, br.dz);
+    b.rotation.z=br.rz;
+    b.rotation.x=(Math.random()-0.5)*0.3;
+    b.castShadow=true; g.add(b);
+  });
+  // Foliage — more spread out, layered canopy
+  const foliage=[
+    {x:0,    y:0.68, z:0,    r:0.28},
+    {x:0.18, y:0.60, z:0.10, r:0.20},
+    {x:-0.15,y:0.63, z:-0.08,r:0.22},
+    {x:0.08, y:0.78, z:-0.06,r:0.16},
+    {x:-0.10,y:0.73, z:0.12, r:0.18},
+    {x:0.12, y:0.55, z:-0.12,r:0.15},
+    {x:-0.18,y:0.58, z:0.05, r:0.17},
+  ];
+  const mats=[M.maple, M.mapleO, M.mapleG, M.maple, M.maple];
+  foliage.forEach((f,i)=>{
+    const fGeo=new THREE.SphereGeometry(f.r, 10, 7);
+    fGeo.scale(1.3, 0.55, 1.15);
+    const fMesh=new THREE.Mesh(fGeo, mats[i%mats.length]);
+    fMesh.position.set(f.x, height*f.y, f.z);
+    fMesh.rotation.y=Math.random()*Math.PI;
+    fMesh.castShadow=true; g.add(fMesh);
+  });
+  g.position.set(px,0,pz);
+  scene.add(g);
+  return g;
+}
+
+// ===== CERAMIC POT =====
+function addCeramicPot(px, pz, potH=0.85){
+  const g=new THREE.Group();
+  // Pot — lathe shape for more organic look
+  const pts=[
+    new THREE.Vector2(0.16,0),
+    new THREE.Vector2(0.19,potH*0.15),
+    new THREE.Vector2(0.22,potH*0.4),
+    new THREE.Vector2(0.23,potH*0.7),
+    new THREE.Vector2(0.21,potH*0.9),
+    new THREE.Vector2(0.22,potH*0.95),
+    new THREE.Vector2(0.24,potH),
+    new THREE.Vector2(0.22,potH),
+  ];
+  const potGeo=new THREE.LatheGeometry(pts, 16);
+  const pot=new THREE.Mesh(potGeo, M.ceramic);
+  pot.castShadow=true; g.add(pot);
+  // Soil/moss
+  const soilGeo=new THREE.CylinderGeometry(0.21,0.21,0.04,12);
+  const soil=new THREE.Mesh(soilGeo, M.moss);
+  soil.position.y=potH-0.02; g.add(soil);
+  g.position.set(px,0,pz);
+  scene.add(g);
+  return g;
+}
+
+addCeramicPot(2.2, 0.45);
+addMapleTree(2.2, 0.45, 2.2);
+addMapleTree(7.2, 1.2, 1.6);
+
+// ===== BAMBOO =====
+function addBamboo(px, pz){
+  const g=new THREE.Group();
+  const count=6+Math.floor(Math.random()*4);
+  const rng=seededRandom(px*100+pz*37|0);
+  for(let i=0;i<count;i++){
+    const h=1.5+rng()*1.0;
+    const stalk=new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.016, h, 6),
+      i%2===0?M.bamboo:M.bambooS
+    );
+    stalk.position.set((rng()-0.5)*0.3, h/2, (rng()-0.5)*0.3);
+    stalk.castShadow=true; g.add(stalk);
+    // Bamboo nodes
+    for(let n=0;n<Math.floor(h/0.3);n++){
+      const node=new THREE.Mesh(
+        new THREE.TorusGeometry(0.016, 0.003, 4, 8),
+        M.bamboo
+      );
+      node.position.set(stalk.position.x, 0.2+n*0.3, stalk.position.z);
+      node.rotation.x=Math.PI/2;
+      g.add(node);
+    }
+    // Leaf clusters
+    for(let j=0;j<4;j++){
+      const lGeo=new THREE.SphereGeometry(0.10+rng()*0.06, 6, 4);
+      lGeo.scale(1.8, 0.35, 0.8);
+      const leaf=new THREE.Mesh(lGeo, rng()>0.5?M.bambooS:M.bamboo);
+      leaf.position.set(
+        stalk.position.x+(rng()-0.5)*0.18,
+        h*0.6+j*0.12+rng()*0.1,
+        stalk.position.z+(rng()-0.5)*0.18
+      );
+      leaf.rotation.y=rng()*Math.PI;
+      leaf.rotation.z=(rng()-0.5)*0.3;
+      leaf.castShadow=true; g.add(leaf);
+    }
+  }
+  g.position.set(px,0,pz);
+  scene.add(g);
+}
+
+addBamboo(0.3, 0.7);
+addBamboo(0.3, 1.6);
+addBamboo(0.3, 2.5);
+addBamboo(0.3, 3.4);
+addBamboo(0.3, 4.3);
+
+// ===== NATURAL STONES =====
+function addNaturalStone(px, pz, scale=1){
+  const rng=seededRandom(px*73+pz*41|0);
+  const geo=new THREE.DodecahedronGeometry(0.22*scale, 1);
+  // Distort vertices for natural look
+  const pos=geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const y=pos.getY(i);
+    pos.setY(i, y*0.45); // flatten
+    pos.setX(i, pos.getX(i)*(1+(rng()-0.5)*0.3));
+    pos.setZ(i, pos.getZ(i)*(1+(rng()-0.5)*0.25));
+  }
+  geo.computeVertexNormals();
+  const s=new THREE.Mesh(geo, rng()>0.5?M.stone:M.stoneD);
+  s.position.set(px, 0.10*scale, pz);
+  s.rotation.y=rng()*Math.PI;
+  s.castShadow=true; s.receiveShadow=true;
+  scene.add(s);
+  // Moss accent
+  const mGeo=new THREE.SphereGeometry(0.06*scale, 5, 4);
+  mGeo.scale(2, 0.25, 1.5);
+  const moss=new THREE.Mesh(mGeo, M.moss);
+  moss.position.set(px+0.04*scale, 0.015, pz+0.04*scale);
+  scene.add(moss);
+}
+
+addNaturalStone(1.0, 3.2, 1.3);
+addNaturalStone(6.8, 1.8, 0.95);
+addNaturalStone(8.0, 3.5, 1.1);
+
+// ===== LOW SHRUBS =====
+function addShrub(px,pz,sc=0.6){
+  const g=new THREE.Group();
+  const count=3+Math.floor(Math.random()*2);
+  for(let i=0;i<count;i++){
+    const sGeo=new THREE.SphereGeometry(0.12*sc+Math.random()*0.06, 8, 6);
+    sGeo.scale(1.3, 0.65, 1.1);
+    const sMesh=new THREE.Mesh(sGeo, Math.random()>0.5?M.plant:M.plantD);
+    sMesh.position.set((Math.random()-0.5)*0.22, 0.08*sc+i*0.04, (Math.random()-0.5)*0.18);
+    sMesh.castShadow=true; g.add(sMesh);
+  }
+  g.position.set(px,0,pz);
+  scene.add(g);
+}
+
+addShrub(0.7, 4.6, 0.7);
+addShrub(8.2, 4.3, 0.65);
+addShrub(5.8, 0.4, 0.55);
+addShrub(1.5, 0.4, 0.5);
+
+// Ground recessed lights
+const groundLightMeshes=[];
+steppingStones.forEach((s,i)=>{
+  if(i%2===0){
+    const gl=box(0.06,0.004,0.06, M.led, s.x+0.28, 0.065, s.z, false);
+    groundLightMeshes.push(gl);
+  }
+});
+
+// Drainage
+box(CY_W*.75,0.004,0.055, M.drain, CY_W/2,0.065,CY_D-.20, false);
+
+advLoad(88);
+
+// ===== GRID =====
+const grid=new THREE.GridHelper(12,24,0x555550,0x444440);
+grid.position.set(CY_W/2,0.07,CY_D/2);
+grid.visible=false;
+scene.add(grid);
+
+// ===== DIMENSION LINES =====
+const dimGrp=new THREE.Group(); dimGrp.visible=false; scene.add(dimGrp);
+function dimLine(a,b,label,yOff=.35){
+  const pts=[new THREE.Vector3(...a),new THREE.Vector3(...b)];
+  dimGrp.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0xE8C868})
+  ));
+  pts.forEach(p=>{
+    const mk=new THREE.Mesh(new THREE.SphereGeometry(.035,6,6),new THREE.MeshBasicMaterial({color:0xE8C868}));
+    mk.position.copy(p); dimGrp.add(mk);
+  });
+  const cv=document.createElement('canvas'); cv.width=280; cv.height=56;
+  const cx=cv.getContext('2d');
+  cx.fillStyle='rgba(20,18,15,.9)'; cx.fillRect(0,0,280,56);
+  cx.strokeStyle='rgba(232,200,104,0.4)'; cx.lineWidth=1; cx.strokeRect(1,1,278,54);
+  cx.fillStyle='#E8C868'; cx.font='bold 22px "SF Mono",monospace';
+  cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText(label,140,28);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),sizeAttenuation:true}));
+  const mid=new THREE.Vector3().addVectors(pts[0],pts[1]).multiplyScalar(.5);
+  sp.position.copy(mid); sp.position.y+=yOff;
+  sp.scale.set(.85,.17,1); dimGrp.add(sp);
+}
+
+dimLine([0,.08,CY_D+.6],[CY_W,.08,CY_D+.6], '924 cm');
+dimLine([-.8,.08,0],[-.8,.08,CY_D], '530 cm');
+dimLine([CY_W+.4,0,CY_D/2],[CY_W+.4,WL_H,CY_D/2], '90 cm 右矮牆',.12);
+dimLine([-0.5,0,CY_D/2],[-0.5,LW_H,CY_D/2], '190 cm 左遮蔽牆',.12);
+dimLine([-.9,0,-.3],[-.9,BD_H,-.3], '339 cm 建物',.18);
+dimLine([0,BD_H+.35,-.15],[BD_W,BD_H+.35,-.15], '709 cm',.25);
+dimLine([bollardPositions[0]+.3,0,CY_D+.3],[bollardPositions[0]+.3,BL_H,CY_D+.3], '45 cm 石柱',.08);
+
+// ===== LIGHTING (warm golden hour) =====
+const lights={
+  ambient: new THREE.AmbientLight(0xFFF5E8,.35),
+  sun: (()=>{
+    const l=new THREE.DirectionalLight(0xFFF0D8,1.6);
+    l.position.set(6,10,8);
+    l.castShadow=true;
+    l.shadow.mapSize.set(2048,2048);
+    l.shadow.camera.near=.5; l.shadow.camera.far=30;
+    l.shadow.camera.left=-12; l.shadow.camera.right=12;
+    l.shadow.camera.top=12; l.shadow.camera.bottom=-12;
+    l.shadow.bias=-0.001;
+    l.shadow.normalBias=0.02;
+    return l;
+  })(),
+  fill: new THREE.DirectionalLight(0xB8C8E0, 0.25),
+  hemi: new THREE.HemisphereLight(0xC8D0D8,0x8B8070,.35),
+  int1: new THREE.PointLight(0xFFE4B5,.9,10),
+  int2: new THREE.PointLight(0xFFE4B5,.55,8),
+  mapleUp:     new THREE.PointLight(0xFFE0B0,0,4.5),
+  leftWallDown:new THREE.PointLight(0xFFE4B5,0,5),
+  pathLight1:  new THREE.PointLight(0xFFE0A0,0,2.5),
+  pathLight2:  new THREE.PointLight(0xFFE0A0,0,2.5),
+  logoSpot:    new THREE.PointLight(0xFFD888,0,3.5),
+};
+lights.fill.position.set(-5,6,-3);
+lights.int1.position.set(BD_W/2,2.2,-2);
+lights.int2.position.set(2,2,-1.5);
+lights.mapleUp.position.set(2.2,0.1,0.45);
+lights.leftWallDown.position.set(0.4,1.85,CY_D/2);
+lights.pathLight1.position.set(3.5,0.1,2.2);
+lights.pathLight2.position.set(3.8,0.1,4.0);
+lights.logoSpot.position.set(0.5,1.55,CY_D*0.55);
+Object.values(lights).forEach(l=>scene.add(l));
+
+advLoad(95);
+
+// ===== DAY / NIGHT =====
+let isNight=false;
+window.setDayNight=function(mode){
+  isNight=mode==='night';
+  document.getElementById('btn-day').classList.toggle('active',!isNight);
+  document.getElementById('btn-night').classList.toggle('active',isNight);
+  if(isNight){
+    scene.background.set(0x0A0A12);
+    scene.fog.color.set(0x0A0A12); scene.fog.density=.028;
+    lights.ambient.intensity=.05; lights.ambient.color.set(0x8090B0);
+    lights.sun.intensity=.02;
+    lights.fill.intensity=0;
+    lights.hemi.intensity=.01;
+    lights.int1.intensity=2.8;
+    lights.int2.intensity=2.0;
+    lights.mapleUp.intensity=1.8;
+    lights.leftWallDown.intensity=1.2;
+    lights.pathLight1.intensity=1.0;
+    lights.pathLight2.intensity=1.0;
+    lights.logoSpot.intensity=1.8;
+    M.led.opacity=.88;
+    M.ledR.opacity=.75;
+    renderer.toneMappingExposure=.65;
+  } else {
+    scene.background.set(0xD5CCBC);
+    scene.fog.color.set(0xD5CCBC); scene.fog.density=.018;
+    lights.ambient.intensity=.35; lights.ambient.color.set(0xFFF5E8);
+    lights.sun.intensity=1.6;
+    lights.fill.intensity=0.25;
+    lights.hemi.intensity=.35;
+    lights.int1.intensity=.9;
+    lights.int2.intensity=.55;
+    lights.mapleUp.intensity=0;
+    lights.leftWallDown.intensity=0;
+    lights.pathLight1.intensity=0;
+    lights.pathLight2.intensity=0;
+    lights.logoSpot.intensity=0;
+    M.led.opacity=0;
+    M.ledR.opacity=0;
+    renderer.toneMappingExposure=1.15;
+  }
+};
+
+// ===== CAMERA PRESETS =====
+const views={
+  corner:       {pos:[-6.5,3.2,9.5],  tgt:[3,.4,2]},
+  front:        {pos:[CY_W/2,1.65,12.5], tgt:[CY_W/2,1.1,2]},
+  courtyard:    {pos:[3.2,1.55,3.6],  tgt:[CY_W/2,.3,0]},
+  bird:         {pos:[CY_W/2,10,CY_D/2+2.5], tgt:[CY_W/2,0,CY_D/2]},
+  night_corner: {pos:[-5.5,2.6,8.5],  tgt:[3,.5,2], night:true},
+};
+window.setView=function(name){
+  const v=views[name]; if(!v) return;
+  if(v.night) setDayNight('night');
+  const sP=camera.position.clone(), sT=controls.target.clone();
+  const eP=new THREE.Vector3(...v.pos), eT=new THREE.Vector3(...v.tgt);
+  const t0=Date.now();
+  (function anim(){
+    const t=Math.min((Date.now()-t0)/900,1);
+    const e=t<.5?2*t*t:-1+(4-2*t)*t;
+    camera.position.lerpVectors(sP,eP,e);
+    controls.target.lerpVectors(sT,eT,e);
+    controls.update();
+    if(t<1) requestAnimationFrame(anim);
+  })();
+};
+
+// ===== TOGGLES =====
+let showDims=false, showGrid=false;
+window.toggleDims=function(){
+  showDims=!showDims; dimGrp.visible=showDims;
+  document.getElementById('btn-dims').classList.toggle('active',showDims);
+};
+window.toggleGrid=function(){
+  showGrid=!showGrid; grid.visible=showGrid;
+  document.getElementById('btn-grid').classList.toggle('active',showGrid);
+};
+
+// ===== RESIZE =====
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+// ===== ANIMATE =====
+advLoad(100);
+setTimeout(()=>document.getElementById('loading').classList.add('done'),600);
+
+(function loop(){
+  requestAnimationFrame(loop);
+  controls.update();
+  renderer.render(scene,camera);
+})();
+
+setView('corner');
+</script>
+</body>
+</html>
