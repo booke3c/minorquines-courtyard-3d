@@ -27,10 +27,12 @@ else
   echo "    $REAL_HOME/Whisplay already exists, skipping clone"
 fi
 
-# Official Raspberry Pi Camera Module 3 is auto-detected; nothing to change.
-# For third-party IMX708 clones (e.g. CAM109) pass --third-party-cam to add
-# the manual overlay from the vendor manual.
-if [ "${1:-}" = "--third-party-cam" ]; then
+# Third-party IMX708 modules (e.g. CAM109) are not auto-detected and need the
+# manual overlay from the vendor manual. Pass --official-cam to skip this if
+# you use the official Raspberry Pi Camera Module 3 (auto-detected).
+if [ "${1:-}" = "--official-cam" ]; then
+  echo "==> Official Camera Module 3 is auto-detected, leaving $CONFIG_TXT untouched"
+else
   echo "==> Enabling third-party IMX708 camera in $CONFIG_TXT"
   if ! grep -q "^dtoverlay=imx708" "$CONFIG_TXT"; then
     sed -i 's/^camera_auto_detect=1/camera_auto_detect=0/' "$CONFIG_TXT"
@@ -39,8 +41,6 @@ if [ "${1:-}" = "--third-party-cam" ]; then
   else
     echo "    imx708 overlay already present, skipping"
   fi
-else
-  echo "==> Camera Module 3 (official) is auto-detected, leaving $CONFIG_TXT untouched"
 fi
 
 echo "==> Installing app to $APP_DIR"
