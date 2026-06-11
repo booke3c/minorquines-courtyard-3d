@@ -10,9 +10,9 @@
 |---|---|
 | Raspberry Pi Zero 2 W（或 Pi 4 / Pi 5） | 主機 |
 | PiSugar Whisplay HAT | 1.69" 240×280 LCD、單顆自訂按鈕、RGB LED、WM8960 喇叭/麥克風 |
-| CAM109 相機模組（Sony IMX708） | 12MP、自動對焦，相容 Camera Module 3，**第三方模組需手動改 config.txt** |
-| microSD 卡 16GB+ | 建議 2025-10-01 之後的 Raspberry Pi OS（kernel 6.12+），舊版可能點不亮 CAM109 |
-| （選配）PiSugar 電池 | 變成可帶出門的相機 |
+| 樹莓派官方 Camera Module 3（IMX708） | 12MP、自動對焦，系統**自動偵測，不用改 config.txt** |
+| microSD 卡 32GB U3 | 最新 Raspberry Pi OS Bookworm |
+| PiSugar 3 電池 | 帶出門用；3D 列印外殼含相機開孔 |
 
 ## 組裝
 
@@ -38,9 +38,10 @@ sudo reboot
 
 - `apt` 安裝 Pillow / numpy / requests / spidev / gpiod / Noto CJK 字型 / rpicam-apps
 - clone 並安裝 [PiSugar/Whisplay](https://github.com/PiSugar/whisplay) 官方驅動（LCD、按鈕、LED、音效）
-- 依 CAM109 手冊在 `/boot/firmware/config.txt` 加上：
-  `camera_auto_detect=0` 與 `dtoverlay=imx708,cam0`
 - 程式安裝到 `/opt/ai-camera`，並註冊開機自啟的 `ai-camera.service`
+
+官方 Camera Module 3 接上即用，不需要動 `config.txt`。
+（若日後改用第三方 IMX708 模組如 CAM109，改跑 `sudo bash install.sh --third-party-cam`）
 
 ## 驗證硬體
 
@@ -80,5 +81,6 @@ LED 狀態：綠＝待機、白＝拍照中、紫色呼吸＝生成中、青＝�
   品質、`INPUT_FIDELITY=high`（人臉/細節保真，較貴）、拍照指令等。
 - 看ログ：`journalctl -u ai-camera -f`
 - 手動跑（先停服務）：`sudo systemctl stop ai-camera && sudo python3 /opt/ai-camera/camera_app.py`
-- 相機點不亮：確認系統夠新（kernel 6.12+）、排線方向、`config.txt` 有 imx708 overlay。
+- 相機點不亮：`rpicam-hello --list-cameras` 應列出 imx708；沒有的話檢查排線方向與卡扣
+  （官方模組不需要任何 `config.txt` 設定，若曾手動加過 `camera_auto_detect=0` 請移除）。
 - 生成一張約需 30–90 秒（視網路與 quality），Zero 2 W 上傳較慢屬正常。

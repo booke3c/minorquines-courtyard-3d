@@ -27,13 +27,20 @@ else
   echo "    $REAL_HOME/Whisplay already exists, skipping clone"
 fi
 
-echo "==> Enabling the IMX708 (CAM109) camera in $CONFIG_TXT"
-if ! grep -q "^dtoverlay=imx708" "$CONFIG_TXT"; then
-  sed -i 's/^camera_auto_detect=1/camera_auto_detect=0/' "$CONFIG_TXT"
-  grep -q "^camera_auto_detect=0" "$CONFIG_TXT" || echo "camera_auto_detect=0" >> "$CONFIG_TXT"
-  echo "dtoverlay=imx708,cam0" >> "$CONFIG_TXT"
+# Official Raspberry Pi Camera Module 3 is auto-detected; nothing to change.
+# For third-party IMX708 clones (e.g. CAM109) pass --third-party-cam to add
+# the manual overlay from the vendor manual.
+if [ "${1:-}" = "--third-party-cam" ]; then
+  echo "==> Enabling third-party IMX708 camera in $CONFIG_TXT"
+  if ! grep -q "^dtoverlay=imx708" "$CONFIG_TXT"; then
+    sed -i 's/^camera_auto_detect=1/camera_auto_detect=0/' "$CONFIG_TXT"
+    grep -q "^camera_auto_detect=0" "$CONFIG_TXT" || echo "camera_auto_detect=0" >> "$CONFIG_TXT"
+    echo "dtoverlay=imx708,cam0" >> "$CONFIG_TXT"
+  else
+    echo "    imx708 overlay already present, skipping"
+  fi
 else
-  echo "    imx708 overlay already present, skipping"
+  echo "==> Camera Module 3 (official) is auto-detected, leaving $CONFIG_TXT untouched"
 fi
 
 echo "==> Installing app to $APP_DIR"
