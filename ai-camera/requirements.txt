@@ -1,0 +1,7 @@
+# On Raspberry Pi OS Bookworm prefer the apt packages (see install.sh):
+#   python3-pil python3-numpy python3-requests python3-spidev python3-libgpiod
+Pillow
+requests
+numpy
+spidev
+gpiod

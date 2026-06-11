@@ -1,0 +1,17 @@
+[
+  {
+    "name": "夢境水彩",
+    "label": "Dream Watercolor",
+    "prompt": "Transform this photo into a dreamy watercolor painting. Soft washes of color bleeding into each other, visible paper texture, loose expressive brushstrokes, pastel palette with one bold accent color. Keep the main subject and composition recognizable."
+  },
+  {
+    "name": "賽博霓虹",
+    "label": "Cyber Neon",
+    "prompt": "Reimagine this photo as a cyberpunk night scene. Neon pink and cyan rim lighting, wet reflective surfaces, holographic signage in the background, cinematic haze, high contrast. Keep the main subject and composition recognizable."
+  },
+  {
+    "name": "手繪動畫",
+    "label": "Hand-drawn Anime",
+    "prompt": "Redraw this photo as a frame from a hand-drawn animated film. Clean ink outlines, flat cel-shaded colors, painterly background with warm afternoon light, gentle nostalgic atmosphere. Keep the main subject and composition recognizable."
+  }
+]
