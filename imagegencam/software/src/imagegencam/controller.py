@@ -30,6 +30,7 @@ import qrcode
 
 from .config import MagicHistoryStore, PromptStore, SettingsStore
 from .job_store import PersistentJobStore
+from .logo_overlay import apply_logo_overlay
 from .openai_client import OpenAIImageEditor, OpenAIImageError, OpenAIMagicPromptPlanner
 from .wifi_manager import NetworkManagerWifi, WifiNetwork, WifiRollback
 
@@ -355,13 +356,31 @@ class ImageGenCamController:
         self.pisugar_power_button_available = True
 
     def _setup_display(self) -> None:
-        import displayhatmini
+        display_mode = os.environ.get("IMAGEGENCAM_DISPLAY", "").strip().lower()
+        if os.environ.get("IMAGEGENCAM_HEADLESS", "0").strip().lower() in {"1", "true", "yes", "on"}:
+            display_mode = "headless"
 
-        self.displayhatmini = displayhatmini
         self.buffer = Image.new("RGB", (WIDTH, HEIGHT))
-        self.display = displayhatmini.DisplayHATMini(self.buffer, backlight_pwm=True)
-        if hasattr(self.display, "st7789") and hasattr(self.display.st7789, "_rotation"):
-            self.display.st7789._rotation = self.display_rotation
+        if display_mode in {"headless", "whisplay"}:
+            from types import SimpleNamespace
+
+            from . import display_backends
+
+            display_class = (
+                display_backends.WhisplayDisplay
+                if display_mode == "whisplay"
+                else display_backends.HeadlessDisplay
+            )
+            self.displayhatmini = SimpleNamespace(DisplayHATMini=display_class)
+            self.display = display_class(self.buffer, backlight_pwm=True)
+            logger.info("Display backend: %s", display_class.__name__)
+        else:
+            import displayhatmini
+
+            self.displayhatmini = displayhatmini
+            self.display = displayhatmini.DisplayHATMini(self.buffer, backlight_pwm=True)
+            if hasattr(self.display, "st7789") and hasattr(self.display.st7789, "_rotation"):
+                self.display.st7789._rotation = self.display_rotation
         self.display.set_backlight(1.0)
         self.display.set_led(0.0, 0.0, 0.0)
 
@@ -438,6 +457,14 @@ class ImageGenCamController:
             return
         self.last_shutter_event_times[event_name] = now
         self.event_queue.put(event_name)
+
+    def queue_web_shutter(self) -> None:
+        """Queue a shutter press from the phone web app.
+
+        Uses the same event queue and debounce as the physical shutter so the
+        capture/generation pipeline is identical for both triggers.
+        """
+        self._queue_shutter_event("shutter")
 
     def _poll_buttons(self) -> None:
         if not self.use_button_polling:
@@ -2736,6 +2763,7 @@ class ImageGenCamController:
                             job.generated_path,
                             reference_paths=list(job.reference_paths),
                         )
+                    apply_logo_overlay(result_path, self.project_root)
                 extra_metadata: dict[str, str] = {}
                 if job.reference_paths:
                     try:

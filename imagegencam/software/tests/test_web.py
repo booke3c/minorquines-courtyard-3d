@@ -218,5 +218,51 @@ class LatestGeneratedPathTests(unittest.TestCase):
             self.assertIn("\\u003c/script\\u003e", html)
 
 
+class WebShutterTests(unittest.TestCase):
+    def test_render_page_includes_shutter_button_and_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = _FakeController(Path(tmp))
+
+            html = render_page(controller).decode("utf-8")
+
+            self.assertIn("shutter-button", html)
+            self.assertIn("/api/shutter", html)
+
+    def test_post_api_shutter_calls_queue_web_shutter(self) -> None:
+        from http.client import HTTPConnection
+        from http.server import ThreadingHTTPServer
+        from threading import Thread
+
+        from imagegencam.web import build_handler
+
+        class ShutterController(_FakeController):
+            def __init__(self, project_root: Path) -> None:
+                super().__init__(project_root)
+                self.web_shutter_calls = 0
+
+            def queue_web_shutter(self) -> None:
+                self.web_shutter_calls += 1
+
+        with tempfile.TemporaryDirectory() as tmp:
+            controller = ShutterController(Path(tmp))
+            server = ThreadingHTTPServer(("127.0.0.1", 0), build_handler(controller))
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                connection = HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+                connection.request("POST", "/api/shutter")
+                response = connection.getresponse()
+                body = response.read()
+                connection.close()
+
+                self.assertEqual(response.status, 200)
+                self.assertIn(b"queued", body)
+                self.assertEqual(controller.web_shutter_calls, 1)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=5)
+
+
 if __name__ == "__main__":
     unittest.main()

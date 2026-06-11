@@ -1128,6 +1128,19 @@ def render_page(controller, message: str = "") -> bytes:
           cursor:pointer;
         }
         .nav button.active { text-decoration:underline; text-underline-offset:5px; }
+        .shutter-row {
+          display:flex;
+          align-items:center;
+          gap:14px;
+          padding:0 0 22px;
+        }
+        .shutter-row .status { margin:0; }
+        button.shutter {
+          font-size:17px;
+          font-weight:600;
+          padding:14px 26px;
+          border-radius:999px;
+        }
         .notice { margin:0 0 24px; color:var(--muted); }
         .panel { display:none; border-top:1px solid var(--line); padding-top:18px; }
         .panel.active { display:block; }
@@ -1245,6 +1258,11 @@ def render_page(controller, message: str = "") -> bytes:
           </nav>
         </header>
 
+        <div class="shutter-row">
+          <button class="action primary shutter" id="shutter-button" type="button">Take Photo</button>
+          <p class="status" id="shutter-status" aria-live="polite"></p>
+        </div>
+
         <section class="panel active" id="panel-prompt">
           <div class="section-title">
             <h3>Prompts</h3>
@@ -1298,6 +1316,8 @@ def render_page(controller, message: str = "") -> bytes:
         const downloadSelectedButton = document.getElementById("download-selected-button");
         const deleteSelectedButton = document.getElementById("delete-selected-button");
         const deviceDetailsElement = document.getElementById("device-details");
+        const shutterButton = document.getElementById("shutter-button");
+        const shutterStatus = document.getElementById("shutter-status");
 
         function selectTab(name) {
           document.querySelectorAll(".nav button").forEach((button) => {
@@ -1514,6 +1534,21 @@ def render_page(controller, message: str = "") -> bytes:
           promptList.scrollIntoView({ block: "start", behavior: "smooth" });
           schedulePromptSave();
         });
+        async function triggerShutter() {
+          shutterButton.disabled = true;
+          shutterStatus.textContent = "Taking photo...";
+          try {
+            const response = await fetch("/api/shutter", { method: "POST" });
+            if (!response.ok) throw new Error("shutter request failed");
+            shutterStatus.textContent = "Photo queued. Generating...";
+            setTimeout(() => refreshImages().catch(() => {}), 2000);
+          } catch (error) {
+            shutterStatus.textContent = "Shutter failed.";
+          } finally {
+            setTimeout(() => { shutterButton.disabled = false; }, 1500);
+          }
+        }
+        shutterButton.addEventListener("click", () => { triggerShutter(); });
         downloadAllButton.addEventListener("click", downloadAllImages);
         downloadSelectedButton.addEventListener("click", downloadCurrentImage);
         deleteSelectedButton.addEventListener("click", () => deleteCurrentImage().catch(() => {
@@ -1950,6 +1985,10 @@ def build_handler(controller):
             self.wfile.write(body)
 
         def do_POST(self) -> None:
+            if self.path == "/api/shutter":
+                controller.queue_web_shutter()
+                self._send_json({"status": "queued"})
+                return
             if self.path == "/settings/profile":
                 payload = self._read_json_body()
                 if payload is None:
