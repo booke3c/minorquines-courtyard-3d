@@ -1,0 +1,15 @@
+[Unit]
+Description=One-button AI camera (Whisplay HAT + IMX708 + gpt-image-1)
+After=network-online.target whisplay-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/ai-camera.env
+WorkingDirectory=/opt/ai-camera
+ExecStart=/usr/bin/python3 /opt/ai-camera/camera_app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
